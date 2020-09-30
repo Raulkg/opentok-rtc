@@ -583,6 +583,12 @@ PhoneNumberController, ResizeSensor, maxUsersPerRoom */
           buttons: new SubscriberButtons(streamVideoType, stream.phoneNumber)
         };
 
+        //hack for filters
+        if (streamVideoType === 'custom') {
+            streamVideoType = 'camera';
+        }
+
+
         var subOptions = subscriberOptions[streamVideoType];
         var enterWithVideoDisabled = streamVideoType === 'camera' && _disabledAllVideos;
 

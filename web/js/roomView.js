@@ -581,6 +581,12 @@ BubbleFactory, Clipboard, LayoutManager, $, maxUsersPerRoom */
       Utils.sendEvent('roomView:toggleFacingMode');
     });
 
+    var switchFilter = document.getElementById('pickFilterContainer');
+
+    switchFilter.addEventListener('click', function (e) {
+      Utils.sendEvent('roomView:toggleFacingMode');
+    });
+
     var menu = document.getElementById('top-banner');
 
     menu.addEventListener('click', function (e) {

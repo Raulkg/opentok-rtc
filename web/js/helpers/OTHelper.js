@@ -304,6 +304,115 @@
       });
     }
 
+ var Filters = {
+    none: function none(imgData) {
+      return imgData;
+    },
+
+    grayscale: function grayscale(imgData) {
+      const res = new Uint8ClampedArray(imgData.data.length);
+      for (let i = 0; i < imgData.data.length; i += 4) {
+        // Using the luminosity algorithm for grayscale 0.21 R + 0.72 G + 0.07 B
+        // https://www.johndcook.com/blog/2009/08/24/algorithms-convert-color-grayscale/
+        var inputRed = imgData.data[i];
+        var inputGreen = imgData.data[i + 1];
+        var inputBlue = imgData.data[i + 2];
+        res[i] = res[i + 1] = res[i + 2] = Math.round(0.21 * inputRed + 0.72 * inputGreen + 0.07 * inputBlue);
+        res[i + 3] = imgData.data[i + 3];
+      }
+      return new ImageData(res, imgData.width, imgData.height);
+    },
+
+    sepia: function sepia(imgData) {
+      const res = new Uint8ClampedArray(imgData.data.length);
+      for (let i = 0; i < imgData.data.length; i += 4) {
+        // Using the algorithm for sepia from:
+        // https://www.techrepublic.com/blog/how-do-i/how-do-i-convert-images-to-grayscale-and-sepia-tone-using-c/
+        var inputRed = imgData.data[i];
+        var inputGreen = imgData.data[i + 1];
+        var inputBlue = imgData.data[i + 2];
+        res[i] = Math.round((inputRed * 0.393) + (inputGreen * 0.769) + (inputBlue * 0.189));
+        res[i + 1] = Math.round((inputRed * 0.349) + (inputGreen * 0.686) + (inputBlue * 0.168));
+        res[i + 2] = Math.round((inputRed * 0.272) + (inputGreen * 0.534) + (inputBlue * 0.131));
+        res[i + 3] = imgData.data[i + 3];
+      }
+      return new ImageData(res, imgData.width, imgData.height);
+    },
+
+    invert: function invert(imgData) {
+      const res = new Uint8ClampedArray(imgData.data.length);
+      for (let i = 0; i < imgData.data.length; i += 4) {
+        // Invert the colors red = 255 - inputRed etc.
+        res[i] = 255 - imgData.data[i];
+        res[i + 1] = 255 - imgData.data[i + 1];
+        res[i + 2] = 255 - imgData.data[i + 2];
+        res[i + 3] = imgData.data[i + 3]; // Leave alpha alone
+      }
+      return new ImageData(res, imgData.width, imgData.height);
+    }
+  };
+
+  Filters.selectedFilter = Filters.none;
+
+      var getFilteredCanvas = function getFilteredCanvas(mediaStream) {
+        var WIDTH = 640;
+        var HEIGHT = 480;
+        var videoEl = document.createElement('video');
+        videoEl.srcObject = mediaStream;
+        videoEl.setAttribute('playsinline', '');
+        videoEl.muted = true;
+        setTimeout(function timeout() {
+          videoEl.play();
+        });
+        var canvas = document.createElement('canvas');
+        var ctx = canvas.getContext('2d');
+        canvas.width = WIDTH;
+        canvas.height = HEIGHT;
+
+        var tmpCanvas = document.createElement('canvas');
+        var tmpCtx = tmpCanvas.getContext('2d');
+        tmpCanvas.width = WIDTH;
+        tmpCanvas.height = HEIGHT;
+
+        videoEl.addEventListener('resize', function resize() {
+          canvas.width = tmpCanvas.width = videoEl.videoWidth;
+          canvas.height = tmpCanvas.height = videoEl.videoHeight;
+        });
+
+        var reqId;
+
+        // Draw each frame of the video
+        var drawFrame = function drawFrame() {
+          // Draw the video element onto the temporary canvas and pull out the image data
+          tmpCtx.drawImage(videoEl, 0, 0, tmpCanvas.width, tmpCanvas.height);
+          var imgData = tmpCtx.getImageData(0, 0, tmpCanvas.width, tmpCanvas.height);
+          // Apply the currently selected filter and get the new image data
+          imgData = Filters.selectedFilter(imgData);
+          // Draw the filtered image data onto the main canvas
+          ctx.putImageData(imgData, 0, 0);
+
+          reqId = requestAnimationFrame(drawFrame);
+        };
+
+        reqId = requestAnimationFrame(drawFrame);
+
+        return {
+          canvas: canvas,
+          stop: function stop() {
+            // Stop the video element, the media stream and the animation frame loop
+            videoEl.pause();
+            if (mediaStream.stop) {
+              mediaStream.stop();
+            }
+            if (MediaStreamTrack && MediaStreamTrack.prototype.stop) {
+              // Newer spec
+              mediaStream.getTracks().forEach(function each(track) { track.stop(); });
+            }
+            cancelAnimationFrame(reqId);
+          }
+        };
+      };
+
     function publish(aDOMElement, aProperties, aHandlers) {
       var self = this;
       _publishOptions = null;
@@ -321,6 +430,9 @@
           _publisher = null;
           reject({ error: error, publisherPromise: _publisherPromise });
         }
+             OT.getUserMedia().then(function gotMedia(mediaStream) {
+             var filteredCanvas = getFilteredCanvas(mediaStream);
+             aProperties.videoSource = filteredCanvas.canvas.captureStream(30).getVideoTracks()[0];
 
         _publisher = OT.initPublisher(aDOMElement, aProperties, function(error) {
           if (error) {
@@ -330,6 +442,7 @@
             });
            return;
           }
+
           _session.publish(_publisher, function(error) {
             if (error) {
               processError(error);
@@ -344,6 +457,8 @@
             }
           });
         });
+
+               })
       });
     }
 
@@ -393,6 +508,10 @@
 
     function setAudioSource(deviceId) {
       _publisher.setAudioSource(deviceId)
+    }
+
+    function toggleFilters() {
+       Filters.selectedFilter = Filters.sepia;
     }
 
     var _screenShare;
@@ -625,6 +744,7 @@
       togglePublisherVideo: togglePublisherVideo,
       toggleFacingMode: toggleFacingMode,
       setAudioSource: setAudioSource,
+      toggleFilters: toggleFilters,
       shareScreen: shareScreen,
       subscribe: subscribe,
       stopShareScreen: stopShareScreen,
