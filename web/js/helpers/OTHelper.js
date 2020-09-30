@@ -511,7 +511,19 @@
     }
 
     function toggleFilters() {
-       Filters.selectedFilter = Filters.sepia;
+       var pos;
+       var len = Object.keys(Filters).length;
+       if(window.localStorage.getItem('currentFilterId') !=  null) {
+
+       pos =  window.localStorage.getItem('currentFilterId');
+        window.localStorage.setItem('currentFilterId', ++pos % (len-1));
+       } else {
+
+       window.localStorage.setItem('currentFilterId', 0);
+       pos = 0;
+       }
+
+       Filters.selectedFilter = Filters[Object.keys(Filters)[pos]];
     }
 
     var _screenShare;

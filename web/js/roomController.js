@@ -321,6 +321,9 @@ PhoneNumberController, ResizeSensor, maxUsersPerRoom */
   }
 
   var viewEventHandlers = {
+  toggleFilter: function () {
+    otHelper.toggleFilters();
+  },
     endCall: function () {
       otHelper.disconnect();
       var url = window.location.origin.concat('/thanks');
