@@ -354,21 +354,165 @@
 
   Filters.selectedFilter = Filters.none;
 
-      var getFilteredCanvas = function getFilteredCanvas(mediaStream) {
+  async function getBgData( obj , isTransparent) {
+    window.bgImageData;
+    var img = document.getElementById("bg");
+    var tempContext = obj.getContext("2d");
+    if (isTransparent) {
+      var cimgData = tempContext.createImageData(640, 480);
+
+      for (let i = 0; i < cimgData.data.length; i += 4) {
+        cimgData.data[i + 0] = 255;
+        cimgData.data[i + 1] = 0;
+        cimgData.data[i + 2] = 0;
+        cimgData.data[i + 3] = 0;
+      }
+
+      window.bgImageData = cimgData;
+    } else {
+      tempContext.drawImage(img, 0, 0, img.width, img.height, 0, 0, 640, 480);
+      window.bgImageData = tempContext.getImageData(0, 0, 640, 480);
+    }
+  }
+
+ var toMask = function toMask(
+      personOrPartSegmentation,
+      foreground,
+      background,
+      drawContour = false,
+      foregroundIds = [1]
+    ) {
+      if (
+        Array.isArray(personOrPartSegmentation) &&
+        personOrPartSegmentation.length === 0
+      ) {
+        return null;
+      }
+
+      var multiPersonOrPartSegmentation;
+
+      if (!Array.isArray(personOrPartSegmentation)) {
+        multiPersonOrPartSegmentation = [personOrPartSegmentation];
+      } else {
+        multiPersonOrPartSegmentation = personOrPartSegmentation;
+      }
+      const { width, height } = multiPersonOrPartSegmentation[0];
+      const bytes = new Uint8ClampedArray(width * height * 4);
+
+
+
+      for (let i = 0; i < height; i += 1) {
+        for (let j = 0; j < width; j += 1) {
+          //(row + i) * width + (column + j)
+          const n = i * width + j;
+          bytes[4 * n + 0] = background.data[4 * n + 0];
+          bytes[4 * n + 1] = background.data[4 * n + 1];
+          bytes[4 * n + 2] = background.data[4 * n + 2];
+          bytes[4 * n + 3] = background.data[4 * n + 3];
+
+          if (
+            foregroundIds.some(
+              (id) => id === multiPersonOrPartSegmentation[0].data[n]
+            )
+          ) {
+            bytes[4 * n] = foreground.r;
+            bytes[4 * n + 1] = foreground.g;
+            bytes[4 * n + 2] = foreground.b;
+            bytes[4 * n + 3] = foreground.a;
+          }
+        }
+      }
+
+      return new ImageData(bytes, width, height);
+    }
+
+
+var flipCanvasHorizontal = function flipCanvasHorizontal(canvas) {
+  var ctx = canvas.getContext('2d');
+  ctx.scale(-1, 1);
+  ctx.translate(-canvas.width, 0);
+}
+ var drawMask = function drawMask(
+        canvas, image, maskImage,
+        maskOpacity = 0.7, maskBlurAmount = 0, flipHorizontal = false) {
+      const [height, width] = getInputSize(image);
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+      ctx.save();
+      if (flipHorizontal) {
+        flipCanvasHorizontal(canvas);
+      }
+
+      ctx.drawImage(image, 0, 0);
+
+      ctx.globalAlpha = maskOpacity;
+      if (maskImage) {
+
+        const mask = renderImageDataToOffScreenCanvas(maskImage, CANVAS_NAMES.mask);
+
+        const blurredMask = drawAndBlurImageOnOffScreenCanvas(
+            mask, maskBlurAmount, CANVAS_NAMES.blurredMask);
+        ctx.drawImage(blurredMask, 0, 0, width, height);
+      }
+      ctx.restore();
+    }
+
+    function renderImageDataToOffScreenCanvas(
+        image, canvasName) {
+      var canvas = ensureOffscreenCanvasCreated(canvasName);
+      renderImageDataToCanvas(image, canvas);
+      return canvas;
+    }
+
+function ensureOffscreenCanvasCreated(id) {
+  if (!offScreenCanvases[id]) {
+    offScreenCanvases[id] = createOffScreenCanvas();
+  }
+  return offScreenCanvases[id];
+}
+
+
+      
+
+      var getFilteredCanvas = async function getFilteredCanvas(mediaStream) {
         var WIDTH = 640;
         var HEIGHT = 480;
+
+       var foregroundColor = { r: 0, g: 0, b: 0, a: 0 };
+       var backgroundColor = { r: 0, g: 0, b: 0, a: 255 };
+
+       var opacity = 1;
+       var maskBlurAmount = 0;
+       var flipHorizontal = false;
+
         var videoEl = document.createElement('video');
         videoEl.srcObject = mediaStream;
         videoEl.setAttribute('playsinline', '');
         videoEl.muted = true;
-        setTimeout(function timeout() {
-          videoEl.play();
-        });
+
+        var t = await new Promise((resolve) => {
+              videoEl.onloadedmetadata = () => {
+                videoEl.width = videoEl.videoWidth;
+                videoEl.height = videoEl.videoHeight;
+                resolve(videoEl);
+              };
+            });
+
+            t.play();
+
         var canvas = document.createElement('canvas');
         var ctx = canvas.getContext('2d');
         canvas.width = WIDTH;
         canvas.height = HEIGHT;
 
+        var bgCanvas = document.createElement("canvas");
+            bgCanvas.id = "dummycanvas";
+            bgCanvas.width = t.width;
+            bgCanvas.height = t.height;
+
+         getBgData(bgCanvas,true);
         var tmpCanvas = document.createElement('canvas');
         var tmpCtx = tmpCanvas.getContext('2d');
         tmpCanvas.width = WIDTH;
@@ -382,14 +526,34 @@
         var reqId;
 
         // Draw each frame of the video
-        var drawFrame = function drawFrame() {
+        var drawFrame = async function drawFrame() {
+        
+
+      var segmentation = await window.bodyPix.segmentPerson(videoEl, {
+        flipHorizontal: false,
+        internalResolution: "medium",
+        segmentationThreshold: 0.7,
+      });
+
+
+
           // Draw the video element onto the temporary canvas and pull out the image data
           tmpCtx.drawImage(videoEl, 0, 0, tmpCanvas.width, tmpCanvas.height);
           var imgData = tmpCtx.getImageData(0, 0, tmpCanvas.width, tmpCanvas.height);
           // Apply the currently selected filter and get the new image data
           imgData = Filters.selectedFilter(imgData);
+
+                   var backgroundDarkeningMask = toMask(
+                      segmentation,
+                      foregroundColor,
+                      window.bgImageData,
+                      false
+                    );
+
+
           // Draw the filtered image data onto the main canvas
           ctx.putImageData(imgData, 0, 0);
+           window.bodyPix.drawMask(canvas,videoEl,backgroundDarkeningMask,opacity,maskBlurAmount,flipHorizontal);
 
           reqId = requestAnimationFrame(drawFrame);
         };
@@ -433,6 +597,7 @@
              OT.getUserMedia().then(function gotMedia(mediaStream) {
              var filteredCanvas = getFilteredCanvas(mediaStream);
              aProperties.videoSource = filteredCanvas.canvas.captureStream(30).getVideoTracks()[0];
+
 
         _publisher = OT.initPublisher(aDOMElement, aProperties, function(error) {
           if (error) {
@@ -523,7 +688,7 @@
        pos = 0;
        }
 
-       Filters.selectedFilter = Filters[Object.keys(Filters)[pos]];
+       Filters.selectedFilter = Filters[Object.keys(Filters)[++pos % (len-1)]];
     }
 
     var _screenShare;

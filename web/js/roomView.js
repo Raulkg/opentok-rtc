@@ -583,7 +583,6 @@ BubbleFactory, Clipboard, LayoutManager, $, maxUsersPerRoom */
 
     var switchFilter = document.getElementById('pickFilterContainer');
     switchFilter.addEventListener('click', function (e) {
-    console.log("test");
       Utils.sendEvent('roomView:toggleFilter');
     });
 
