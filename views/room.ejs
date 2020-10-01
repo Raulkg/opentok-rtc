@@ -31,10 +31,22 @@
     <link rel="preconnect" href="https://in.hotjar.com">
     <link rel="preconnect" href="https://www.google-analytics.com">
 
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.4.0/dist/tf.min.js"></script>
+    <!-- Load BodyPix -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.0.5/dist/body-pix.min.js"></script>
+
     <% if (adobeTrackingUrl) { %>
     <script src="<%=adobeTrackingUrl%>" async></script>
     <% } %>
     <script>
+      bodyPix.load({ architecture: 'MobileNetV1',
+                       outputStride: 16,
+                       multiplier: 0.50,
+                       quantBytes: 2
+                               }).then(function(net) {
+          // BodyPix model loaded
+          window.bodyPix = net;
+      });
       window.apiKey='<%=apiKey%>';
       window.precallApiKey='<%=precallApiKey%>';
       window.precallSessionId='<%=precallSessionId%>';
@@ -123,6 +135,8 @@
         </div>
       </div>
       <div class="right-container">
+      <canvas id="merge-output"> </canvas>
+      <img id="bg" src="/images/background.jpg" />
         <% if (enableStopReceivingVideo) { %>
         <div class="videoSwitch">
           <a id="videoSwitch" disabled>

@@ -28,9 +28,6 @@
     <script defer type="text/javascript" src="/js/components/modal.js"></script>
     <script defer type="text/javascript" src="/js/vendor/lazy_loader.js"></script>
     <script defer type="text/javascript" src="/js/rtcApp.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.4.0/dist/tf.min.js"></script>
-    <!-- Load BodyPix -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.0.5/dist/body-pix.min.js"></script>
     <% if (adobeTrackingUrl) { %>
     <script src="<%=adobeTrackingUrl%>" async></script>
     <% } %>
@@ -45,10 +42,6 @@
       window.opentokJsUrl='<%=opentokJsUrl%>';
       window.enablePrecallTest=<%=enablePrecallTest%>;
       window.enterButtonLabel="<%=enterButtonLabel%>";
-                  bodyPix.load().then(function(net) {
-                      // BodyPix model loaded
-                      console.log("bodypix loaded")
-                  });
     </script>
 
     <!-- OneTrust Cookies Consent Notice start -->
